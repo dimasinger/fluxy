@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fluxy"
+version = "0.0.1"
+description = "Tool for adding hole grids to CAD designs"
+authors = [{name = "Dmitriy Volkov", email = "dimasinger@github.com"}]
+license = {file = "LICENSE"}
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "gdstk<1.0",
+    "PyQt5<5.16",
+]
+
+[project.urls]
+Repository = "https://gitlab.com/dimasinger/fluxy"

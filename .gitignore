@@ -1,0 +1,23 @@
+# Byte-compiled / cached files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environment
+.venv/
+
+# Logs and temp files
+*.log
+*.tmp
+
+# Build / distribution
+*.egg-info/
+
+# IDE / Editor settings
+.vscode/
+*.swp
+
+# Designs
+*.gds
+*.oas

@@ -6,6 +6,7 @@ __pycache__/
 
 # Virtual environment
 .venv/
+.conda/
 
 # Logs and temp files
 *.log
@@ -21,3 +22,5 @@ __pycache__/
 # Designs
 *.gds
 *.oas
+
+old/

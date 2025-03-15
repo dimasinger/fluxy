@@ -49,8 +49,11 @@ class Design:
         else:
             self.library = _load_design(infile)
 
-        self._polygon_cache = None
-        self._layer_cache = {}
+        # select a top cell for added objects
+        top_cells = self.library.top_level()
+        self.top_cell = top_cells[0]
+        if len(top_cells) > 1:
+            print(f"Multiple top cells found. Using the the cell: {self.top_cell.name}")
 
     def save(self, outfile: str):
         """Save the design to a file.
@@ -75,18 +78,16 @@ class Design:
         list[Polygon]
             List of shapely Polygon objects representing the polygons on the given layer.
         """
-        if layer not in self._layer_cache:
-            polygons = []
-            for top_cell in self.library.top_level():
-                polygons += [
-                    convert_gdstk_polygon(polygon)
-                    for polygon in top_cell.get_polygons(layer=layer, datatype=0)
-                ]
 
-            valid_polygons = [polygon for polygon in polygons if polygon.is_valid]
-            self._layer_cache[layer] = valid_polygons
+        polygons = []
+        for top_cell in self.library.top_level():
+            polygons += [
+                convert_gdstk_polygon(polygon)
+                for polygon in top_cell.get_polygons(layer=layer, datatype=0)
+            ]
 
-        return self._layer_cache[layer]
+        valid_polygons = [polygon for polygon in polygons if polygon.is_valid]
+        return valid_polygons
 
     def get_all_polygons(self) -> list[Polygon]:
         """Return all polygons in the design.
@@ -97,16 +98,12 @@ class Design:
             List of shapely Polygon objects representing the polygons.
         """
 
-        if self._polygon_cache is None:
-            polygons = []
-            for top_cell in self.library.top_level():
-                polygons += [
-                    convert_gdstk_polygon(polygon)
-                    for polygon in top_cell.get_polygons()
-                ]
-            self._polygon_cache = polygons
-
-        return self._polygon_cache
+        polygons = []
+        for top_cell in self.library.top_level():
+            polygons += [
+                convert_gdstk_polygon(polygon) for polygon in top_cell.get_polygons()
+            ]
+        return polygons
 
     def get_bounds(self):
         """Return the bounding box of the design.
@@ -119,3 +116,19 @@ class Design:
 
         polygons = self.get_all_polygons()
         return MultiPolygon(polygons).bounds
+
+    def add(self, obj: gdstk.Cell | gdstk.Reference):
+        """Add a cell or reference to the design.
+
+        Parameters
+        ----------
+        obj : gdstk.Cell | gdstk.Reference
+            Cell or reference to add.
+        """
+
+        if isinstance(obj, gdstk.Cell):
+            self.library.add(obj)
+        elif isinstance(obj, gdstk.Reference):
+            self.top_cell.add(obj)
+        else:
+            raise TypeError(f"Object type {type(obj)} not supported.")

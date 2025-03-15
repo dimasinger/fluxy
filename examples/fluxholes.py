@@ -23,7 +23,7 @@ zone.create_holes(
     hole_size=2,
 )
 
-plot_shapely_geometry(zone.exclusion_zone)
-plt.show()
+# plot_shapely_geometry(zone.exclusion_zone)
+# plt.show()
 
 design.save("examples/test_holed.oas")

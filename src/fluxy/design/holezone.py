@@ -1,5 +1,10 @@
-from shapely import Polygon, MultiPolygon
+from math import floor, sqrt
+import numpy as np
+
 from shapely import buffer, union, intersection
+from shapely.geometry import Point, Polygon, MultiPolygon
+
+import gdstk
 
 from enum import Enum
 
@@ -14,6 +19,69 @@ class GridType(Enum):
 class HoleType(Enum):
     CIRCLE = 1
     SQUARE = 2
+
+
+def _generate_grid_points(
+    bounds: tuple[float],
+    grid_size: float,
+    grid_type: GridType,
+):
+    x0, y0, x1, y1 = bounds
+    w_tot = x1 - x0
+    h_tot = y1 - y0
+
+    if grid_type == GridType.TRIANGLE:
+        x_center = x0 + w_tot / 2
+        y_center = y0 + h_tot / 2
+
+        imax = floor(w_tot / (2 * grid_size))
+        jmax = floor(h_tot / (sqrt(3) * grid_size))
+        grid_x = grid_size
+        grid_y = sqrt(3) / 2 * grid_size
+
+        for i in range(-imax, imax):
+            for j in range(-jmax, jmax + 1):
+                x = x_center + grid_x * i
+                y = y_center + grid_y * j
+
+                # offset every second row
+                if j % 2 == 1:
+                    x += grid_size / 2
+
+                yield x, y
+
+    elif grid_type == GridType.SQUARE:
+        for x in np.arange(x0, x1, grid_size):
+            for y in np.arange(y0, y1, grid_size):
+                yield x, y
+
+    else:
+        raise ValueError(f"Unknown grid type: {grid_type}")
+
+
+def _generate_hole_cell(
+    hole_size: float,
+    hole_type: HoleType,
+    layer: int = 0,
+) -> gdstk.Cell:
+    if hole_type == HoleType.CIRCLE:
+        hole = gdstk.ellipse(
+            center=(0, 0),
+            radius=hole_size / 2,
+            layer=layer,
+        )
+
+    elif hole_type == HoleType.SQUARE:
+        hole = gdstk.rectangle(
+            corner1=(-hole_size / 2, -hole_size / 2),
+            corner2=(hole_size / 2, hole_size / 2),
+            layer=layer,
+        )
+
+    else:
+        raise ValueError(f"Unknown hole type: {hole_type}")
+
+    return gdstk.Cell(f"HOLE_{hole_type.name}_{hole_size:.1f}").add(hole)
 
 
 class HoleZone:
@@ -50,9 +118,11 @@ class HoleZone:
         # leading to a massive performance improvement.
 
         x0, y0, x1, y1 = self.design.get_bounds()
+        w_tot = abs(x1 - x0)
+        h_tot = abs(y1 - y0)
 
-        grid_x = abs(x1 - x0) / subgrids
-        grid_y = abs(y1 - y0) / subgrids
+        grid_x = w_tot / subgrids
+        grid_y = h_tot / subgrids
 
         self.exclusion_zone_subgrids = [
             [
@@ -88,10 +158,10 @@ class HoleZone:
         ]
 
         # Functions to determine in which subgrid a point is located.
-        self.in_subgrid_x = lambda x: min(
+        self.x_to_subgrid = lambda x: min(
             subgrids - 1, floor(subgrids * (x - x0) / w_tot)
         )
-        self.in_subgrid_y = lambda y: min(
+        self.y_to_subgrid = lambda y: min(
             subgrids - 1, floor(subgrids * (y - y0) / h_tot)
         )
 
@@ -121,3 +191,22 @@ class HoleZone:
         hole_type : HoleType, optional
             Shape of the holes, by default HoleType.CIRCLE
         """
+
+        hole_zone = MultiPolygon(self.design.get_polygons(hole_zone_layer))
+        grid_points = _generate_grid_points(hole_zone.bounds, grid_size, grid_type)
+
+        hole_cell = _generate_hole_cell(hole_size, hole_type)
+        self.design.add(hole_cell)
+
+        for xy in grid_points:
+            point = Point(xy)
+            if not hole_zone.contains(point):
+                continue
+
+            si = self.x_to_subgrid(xy[0])
+            sj = self.y_to_subgrid(xy[1])
+            subgrid = self.exclusion_zone_subgrids[si][sj]
+            if subgrid.contains(point):
+                continue
+
+            self.design.add(gdstk.Reference(hole_cell, origin=xy))

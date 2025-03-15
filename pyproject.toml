@@ -11,6 +11,7 @@ license = {file = "LICENSE"}
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "matplotlib",
     "gdstk<1.0",
     "PyQt5<5.16",
     "shapely<2.1",

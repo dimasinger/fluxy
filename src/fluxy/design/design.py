@@ -3,9 +3,7 @@ from gdstk import Library
 
 from shapely import Polygon
 
-
-def _convert_gdstk_polygon(polygon: gdstk.Polygon) -> Polygon:
-    return Polygon(polygon.points)
+from .util import convert_gdstk_polygon
 
 
 def _load_design(infile: str):
@@ -52,7 +50,7 @@ class Design:
             polygons = []
             for top_cell in self.library.top_level():
                 polygons += [
-                    _convert_gdstk_polygon(polygon)
+                    convert_gdstk_polygon(polygon)
                     for polygon in top_cell.get_polygons(layer=layer, datatype=0)
                 ]
 

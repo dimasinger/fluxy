@@ -49,7 +49,24 @@ class HoleZone:
         hole_layer: int,
         hole_zone_layer: int,
         grid_size: float = 5.0,
-        hole_radius: float = 1.0,
+        hole_size: float = 1.0,
         grid_type: GridType = GridType.TRIANGLE,
         hole_type: HoleType = HoleType.CIRCLE,
-    ): ...
+    ):
+        """Add holes to the design.
+
+        Parameters
+        ----------
+        hole_layer : int
+            Layer number to place the holes on.
+        hole_zone_layer : int
+            Layer that contains zones in which holes should be placed.
+        grid_size : float, optional
+            Distance between two neighbouring holes, by default 5.0
+        hole_size : float, optional
+            Size of a single hole, by default 1.0
+        grid_type : GridType, optional
+            Lattice of the hole grid, by default GridType.TRIANGLE
+        hole_type : HoleType, optional
+            Shape of the holes, by default HoleType.CIRCLE
+        """

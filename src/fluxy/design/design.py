@@ -86,7 +86,7 @@ class Design:
                 for polygon in top_cell.get_polygons(layer=layer, datatype=0)
             ]
 
-        valid_polygons = [polygon for polygon in polygons if polygon.is_valid]
+        valid_polygons = [polygon for polygon in polygons]
         return valid_polygons
 
     def get_all_polygons(self) -> list[Polygon]:

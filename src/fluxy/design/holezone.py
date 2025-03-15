@@ -193,9 +193,12 @@ class HoleZone:
         """
 
         hole_zone = MultiPolygon(self.design.get_polygons(hole_zone_layer))
-        grid_points = _generate_grid_points(hole_zone.bounds, grid_size, grid_type)
-
-        hole_cell = _generate_hole_cell(hole_size, hole_type)
+        grid_points = _generate_grid_points(
+            bounds=hole_zone.bounds, grid_size=grid_size, grid_type=grid_type
+        )
+        hole_cell = _generate_hole_cell(
+            hole_size=hole_size, hole_type=hole_type, layer=hole_layer
+        )
         self.design.add(hole_cell)
 
         for xy in grid_points:

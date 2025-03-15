@@ -4,7 +4,7 @@ from gdstk import Library
 import shapely
 from shapely import Polygon, MultiPolygon
 
-from .util import convert_gdstk_polygon
+from .util import convert_gdstk_polygon, plot_shapely_geometry
 
 
 def _load_design(infile: str):
@@ -54,6 +54,12 @@ class Design:
         self.top_cell = top_cells[0]
         if len(top_cells) > 1:
             print(f"Multiple top cells found. Using the the cell: {self.top_cell.name}")
+
+        # find all layers in the design
+        self.layers = set()
+        for top_cell in self.library.top_level():
+            for polygon in top_cell.get_polygons():
+                self.layers.add(polygon.layer)
 
     def save(self, outfile: str):
         """Save the design to a file.
@@ -132,3 +138,29 @@ class Design:
             self.top_cell.add(obj)
         else:
             raise TypeError(f"Object type {type(obj)} not supported.")
+
+    def plot(self, ax=None, layer=None):
+        """Plot the design.
+
+        Parameters
+        ----------
+        ax : None, optional
+            Matplotlib axis to plot on, by default None.
+            If None, generates a new figure and axis.
+
+        Returns
+        -------
+        ax
+            Matplotlib axis with the plotted design.
+        """
+
+        if ax is None:
+            _, ax = plt.subplots()
+
+        if layer is None:
+            polygons = MultiPolygon(self.get_all_polygons())
+        else:
+            polygons = MultiPolygon(self.get_polygons(layer))
+        plot_shapely_geometry(polygons, ax)
+
+        return ax

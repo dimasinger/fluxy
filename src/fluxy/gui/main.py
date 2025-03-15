@@ -8,9 +8,16 @@ from PyQt5.QtWidgets import (
     QPushButton,
     QFileDialog,
     QFrame,
+    QMessageBox,
 )
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtCore import Qt
+
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_qtagg import FigureCanvas
+
+from fluxy.design import Design, HoleZone
+from fluxy.gui.holes import ConfigureCircuitLayersDialog
 
 _SELECT_FILE = "Select layout file"
 
@@ -18,6 +25,10 @@ _SELECT_FILE = "Select layout file"
 class FluxyApp(QWidget):
     def __init__(self):
         super().__init__()
+
+        self.design = None
+        self.hole_zone = None
+
         self.initUI()
 
     def initUI(self):
@@ -42,10 +53,10 @@ class FluxyApp(QWidget):
         display_layout = QHBoxLayout()
 
         # Image display (80% width)
-        self.image_label = QLabel("overview")
-        self.image_label.setAlignment(Qt.AlignCenter)
-        self.image_label.setStyleSheet("border: 1px solid black;")
-        display_layout.addWidget(self.image_label, 4)
+        self.canvas_fig, self.canvas_ax = plt.subplots(figsize=(6, 6))
+        self.canvas = FigureCanvas(self.canvas_fig)
+        self.update_image()
+        display_layout.addWidget(self.canvas, 4)
 
         # Button panel (20% width)
         button_layout = QVBoxLayout()
@@ -54,6 +65,7 @@ class FluxyApp(QWidget):
         self.add_holes_button = QPushButton("Add holes...")
         button_layout.addWidget(self.add_holes_button)
         self.buttons.append(self.add_holes_button)
+        self.add_holes_button.clicked.connect(self.add_holes)
 
         button_layout.addStretch()
         display_layout.addLayout(button_layout, 1)
@@ -73,16 +85,41 @@ class FluxyApp(QWidget):
         )
 
         if file_name:
-            self.filename_display.setText(file_name)
-            self.display_image(file_name)
+            self.design = Design(file_name)
 
-    def display_image(self, file_path):
-        pixmap = QPixmap(file_path)
-        self.image_label.setPixmap(
-            pixmap.scaled(
-                self.image_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation
+            dialog = ConfigureCircuitLayersDialog(self, self.design.layers)
+
+            if not dialog.exec():
+                return
+
+            self.circuit_layers = dialog.selected_layers()
+
+            self.hole_zone = HoleZone(
+                self.design,
+                self.circuit_layers,
+                dialog.minimum_distance(),
             )
-        )
+
+            self.filename_display.setText(file_name)
+            self.update_image()
+
+    def add_holes(self):
+        layers = list(range(10))
+
+        if self.hole_zone is None:
+            QMessageBox.critical(self, "Error", "Please open a design first!")
+            return
+
+    def update_image(self):
+        self.canvas_ax.clear()
+        self.canvas_ax.set_position([0, 0, 1, 1])
+        self.canvas_ax.set_axis_off()
+
+        if self.design is not None:
+            for layer in self.circuit_layers:
+                self.design.plot(self.canvas_ax, layer=layer)
+
+        self.canvas.draw()
 
 
 if __name__ == "__main__":

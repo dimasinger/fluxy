@@ -1,5 +1,5 @@
-from shapely import MultiPolygon
-from shapely import buffer, union
+from shapely import Polygon, MultiPolygon
+from shapely import buffer, union, intersection
 
 from enum import Enum
 
@@ -23,6 +23,7 @@ class HoleZone:
         circuit_layers: list[int],
         circuit_margin: float = 10.0,
         exclusion_layers: list[int] = [],
+        subgrids: int = 25,
     ):
         self.design = design
 
@@ -43,6 +44,56 @@ class HoleZone:
         circuit_exclusion_zone = buffer(circuit_exclusion_zone, distance=circuit_margin)
 
         self.exclusion_zone = union(exclusion_zone, circuit_exclusion_zone)
+
+        # Cut up the exclusion zone into a square matrix of subgrids.
+        # Each hole only has to check collision with elements in its subgrid,
+        # leading to a massive performance improvement.
+
+        x0, y0, x1, y1 = self.design.get_bounds()
+
+        grid_x = abs(x1 - x0) / subgrids
+        grid_y = abs(y1 - y0) / subgrids
+
+        self.exclusion_zone_subgrids = [
+            [
+                # Cut out a square larger than the grid cell by 2*circuit_margin.
+                # This makes sure that circuit elements at the edge of the neigbouring
+                # cell are also checked for collisions.
+                intersection(
+                    Polygon(
+                        [
+                            (
+                                x0 + grid_x * sx - circuit_margin,
+                                y0 + grid_y * sy - circuit_margin,
+                            ),
+                            (
+                                x0 + grid_x * (sx + 1) + circuit_margin,
+                                y0 + grid_y * sy - circuit_margin,
+                            ),
+                            (
+                                x0 + grid_x * (sx + 1) + circuit_margin,
+                                y0 + grid_y * (sy + 1) + circuit_margin,
+                            ),
+                            (
+                                x0 + grid_x * sx - circuit_margin,
+                                y0 + grid_y * (sy + 1) + circuit_margin,
+                            ),
+                        ]
+                    ),
+                    self.exclusion_zone,
+                )
+                for sy in range(subgrids)
+            ]
+            for sx in range(subgrids)
+        ]
+
+        # Functions to determine in which subgrid a point is located.
+        self.in_subgrid_x = lambda x: min(
+            subgrids - 1, floor(subgrids * (x - x0) / w_tot)
+        )
+        self.in_subgrid_y = lambda y: min(
+            subgrids - 1, floor(subgrids * (y - y0) / h_tot)
+        )
 
     def create_holes(
         self,

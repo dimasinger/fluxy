@@ -1,7 +1,8 @@
 import gdstk
 from gdstk import Library
 
-from shapely import Polygon
+import shapely
+from shapely import Polygon, MultiPolygon
 
 from .util import convert_gdstk_polygon
 
@@ -35,17 +36,45 @@ class Design:
         self,
         infile: str | None = None,
     ):
+        """Create or load a design.
+
+        Parameters
+        ----------
+        infile : str | None, optional
+            Path to the input file, by default None.
+            If None, a new empty design is created.
+        """
         if infile is None:
             self.library = Library()
         else:
             self.library = _load_design(infile)
 
+        self._polygon_cache = None
         self._layer_cache = {}
 
     def save(self, outfile: str):
+        """Save the design to a file.
+
+        Parameters
+        ----------
+        outfile : str
+            Path to the output file.
+        """
         _save_design(outfile, self.library)
 
     def get_polygons(self, layer: int) -> list[Polygon]:
+        """Return all polygons on a given layer.
+
+        Parameters
+        ----------
+        layer : int
+            Layer number.
+
+        Returns
+        -------
+        list[Polygon]
+            List of shapely Polygon objects representing the polygons on the given layer.
+        """
         if layer not in self._layer_cache:
             polygons = []
             for top_cell in self.library.top_level():
@@ -58,3 +87,35 @@ class Design:
             self._layer_cache[layer] = valid_polygons
 
         return self._layer_cache[layer]
+
+    def get_all_polygons(self) -> list[Polygon]:
+        """Return all polygons in the design.
+
+        Returns
+        -------
+        list[Polygon]
+            List of shapely Polygon objects representing the polygons.
+        """
+
+        if self._polygon_cache is None:
+            polygons = []
+            for top_cell in self.library.top_level():
+                polygons += [
+                    convert_gdstk_polygon(polygon)
+                    for polygon in top_cell.get_polygons()
+                ]
+            self._polygon_cache = polygons
+
+        return self._polygon_cache
+
+    def get_bounds(self):
+        """Return the bounding box of the design.
+
+        Returns
+        -------
+        tuple
+            (minx, miny, maxx, maxy) of the bounding box.
+        """
+
+        polygons = self.get_all_polygons()
+        return MultiPolygon(polygons).bounds

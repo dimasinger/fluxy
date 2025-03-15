@@ -2,7 +2,7 @@
 
 from fluxy.design import Design, HoleZone
 
-design = Design("test.oas")
+design = Design("examples/test.oas")
 
 
 zone = HoleZone(
@@ -18,7 +18,7 @@ zone.create_holes(
     hole_radius=2,
 )
 
-design.save("test_holed.oas")
+design.save("examples/test_holed.oas")
 
 # %%
 

@@ -12,13 +12,13 @@ from .design import Design
 
 
 class GridType(Enum):
-    TRIANGLE = 1
-    SQUARE = 2
+    TRIANGLE = "Triangular"
+    SQUARE = "Square"
 
 
 class HoleType(Enum):
-    CIRCLE = 1
-    SQUARE = 2
+    CIRCLE = "Circle"
+    SQUARE = "Square"
 
 
 def _generate_grid_points(

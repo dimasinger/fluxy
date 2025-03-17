@@ -1,4 +1,7 @@
-import sys
+from os import path
+
+import numpy as np
+
 from PyQt5.QtWidgets import (
     QApplication,
     QWidget,
@@ -10,16 +13,35 @@ from PyQt5.QtWidgets import (
     QFrame,
     QMessageBox,
 )
-from PyQt5.QtGui import QPixmap
+from PyQt5.QtGui import QPixmap, QImage
 from PyQt5.QtCore import Qt
+
+from PIL import Image
 
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qtagg import FigureCanvas
 
 from fluxy.design import Design, HoleZone
-from fluxy.gui.holes import ConfigureCircuitLayersDialog
+from fluxy.gui.holes import ConfigureCircuitLayersDialog, AddHolesDialog
 
 _SELECT_FILE = "Select layout file"
+
+
+def _draw_design(design: Design, layers: list[int]) -> QPixmap:
+    fig, ax = plt.subplots(figsize=(6, 6))
+    canvas = FigureCanvas(fig)
+
+    ax.set_position([0, 0, 1, 1])
+    ax.set_axis_off()
+    for layer in layers:
+        design.plot(ax, layer)
+
+    canvas.draw()
+    size = canvas.size()
+    width, height = size.width(), size.height()
+
+    im = QImage(canvas.buffer_rgba(), width, height, QImage.Format_ARGB32)
+    return QPixmap(im)
 
 
 class FluxyApp(QWidget):
@@ -40,7 +62,7 @@ class FluxyApp(QWidget):
         # File selection layout
         file_layout = QVBoxLayout()
         self.file_button = QPushButton(_SELECT_FILE)
-        self.file_button.clicked.connect(self.select_file)
+        self.file_button.clicked.connect(self.load_file)
 
         self.filename_display = QLabel("No file selected")
         self.filename_display.setFrameStyle(QFrame.Panel | QFrame.Sunken)
@@ -53,19 +75,19 @@ class FluxyApp(QWidget):
         display_layout = QHBoxLayout()
 
         # Image display (80% width)
-        self.canvas_fig, self.canvas_ax = plt.subplots(figsize=(6, 6))
-        self.canvas = FigureCanvas(self.canvas_fig)
-        self.update_image()
-        display_layout.addWidget(self.canvas, 4)
+        self.canvas_label = QLabel("")
+        display_layout.addWidget(self.canvas_label, 4)
 
         # Button panel (20% width)
         button_layout = QVBoxLayout()
-        self.buttons = []
 
         self.add_holes_button = QPushButton("Add holes...")
-        button_layout.addWidget(self.add_holes_button)
-        self.buttons.append(self.add_holes_button)
         self.add_holes_button.clicked.connect(self.add_holes)
+        button_layout.addWidget(self.add_holes_button)
+
+        self.save_button = QPushButton("Save design")
+        self.save_button.clicked.connect(self.save_file)
+        button_layout.addWidget(self.save_button)
 
         button_layout.addStretch()
         display_layout.addLayout(button_layout, 1)
@@ -74,7 +96,7 @@ class FluxyApp(QWidget):
 
         self.setLayout(main_layout)
 
-    def select_file(self):
+    def load_file(self):
         options = QFileDialog.Options()
         file_name, _ = QFileDialog.getOpenFileName(
             self,
@@ -85,7 +107,8 @@ class FluxyApp(QWidget):
         )
 
         if file_name:
-            self.design = Design(file_name)
+            self.file_name = file_name
+            self.design = Design(self.file_name)
 
             dialog = ConfigureCircuitLayersDialog(self, self.design.layers)
 
@@ -94,36 +117,61 @@ class FluxyApp(QWidget):
 
             self.circuit_layers = dialog.selected_layers()
 
+            self.filename_display.setText("Loading...")
+            QApplication.processEvents()
+
+            self.create_image()
+            self.filename_display.setText("Pre-processing...")
             self.hole_zone = HoleZone(
                 self.design,
                 self.circuit_layers,
                 dialog.minimum_distance(),
             )
 
-            self.filename_display.setText(file_name)
-            self.update_image()
+            self.filename_display.setText(self.file_name)
+
+    def save_file(self):
+        if self.design is None:
+            QMessageBox.critical(self, "Error", "Please open a design first!")
+            return
+
+        default_filename = path.splitext(self.file_name)[0] + "_holed.oas"
+
+        options = QFileDialog.Options()
+        file_name, _ = QFileDialog.getSaveFileName(
+            None,
+            "Save Design",
+            default_filename,
+            "OAS Files (*.oas);;GDS Files (*.gds);;All Files (*)",
+            options=options,
+        )
+
+        self.design.save(file_name)
 
     def add_holes(self):
-        layers = list(range(10))
-
         if self.hole_zone is None:
             QMessageBox.critical(self, "Error", "Please open a design first!")
             return
 
-    def update_image(self):
-        self.canvas_ax.clear()
-        self.canvas_ax.set_position([0, 0, 1, 1])
-        self.canvas_ax.set_axis_off()
+        dialog = AddHolesDialog(self, self.design.layers)
 
-        if self.design is not None:
-            for layer in self.circuit_layers:
-                self.design.plot(self.canvas_ax, layer=layer)
+        if not dialog.exec():
+            return
 
-        self.canvas.draw()
+        self.hole_zone.create_holes(
+            hole_layer=dialog.layer_holes(),
+            hole_zone_layer=dialog.layer_holezone(),
+            grid_size=dialog.grid_size(),
+            grid_type=dialog.grid_type(),
+            hole_size=dialog.hole_size(),
+            hole_type=dialog.hole_type(),
+        )
 
-
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    window = FluxyApp()
-    window.show()
-    sys.exit(app.exec_())
+    def create_image(self):
+        self.circuit_pixmap = _draw_design(self.design, self.circuit_layers)
+        self.canvas_label.setPixmap(
+            self.circuit_pixmap.scaledToWidth(
+                self.canvas_label.width(),
+                Qt.SmoothTransformation,
+            )
+        )
